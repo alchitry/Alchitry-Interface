@@ -20,6 +20,7 @@ dependencies {
     implementation("io.github.dsheirer:usb4java:1.3.5")
     implementation("io.github.dsheirer:usb4java-native-libraries:1.3.3")
     implementation("me.tongfei:progressbar:0.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 }
 
 kotlin {

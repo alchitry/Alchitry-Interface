@@ -2,7 +2,28 @@ package com.alchitry.hardware
 
 import com.alchitry.hardware.usb.UsbUtil
 import com.alchitry.hardware.usb.ftdi.enums.PortInterfaceType
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
+object BoardSerializer : KSerializer<Board> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("Board", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: Board) {
+        encoder.encodeString(value.name)
+    }
+
+    override fun deserialize(decoder: Decoder): Board {
+        val name = decoder.decodeString()
+        return Board.fromName(name) ?: error("Unknown board type: $name")
+    }
+}
+@Serializable(with = BoardSerializer::class)
 sealed class Board {
     companion object {
         fun fromName(name: String): Board? =
