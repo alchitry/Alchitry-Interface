@@ -1,5 +1,10 @@
 package com.alchitry.hardware
 
+import me.tongfei.progressbar.*
+import java.io.FileDescriptor
+import java.io.FileOutputStream
+import java.io.PrintStream
+
 object Log {
     var listener: LogListener? = null
 
@@ -7,7 +12,7 @@ object Log {
         fun onMessage(message: String)
         fun onError(message: String)
         fun onSuccess(message: String)
-        fun onProgress(taskName: String, current: Long, total: Long)
+        fun progressBar(taskName: String, total: Long): ProgressBar
     }
 
     fun println(message: String = "") {
@@ -34,27 +39,27 @@ object Log {
         error(e.message ?: e.toString())
     }
 
-    inline fun progressBar(taskName: String, total: Long, block: (ProgressBar) -> Unit) {
-        val pb = ProgressBar(taskName, total)
-        block(pb)
-        pb.close()
+    val defaultBarStyle: ProgressBarStyle = if (Env.isWindows) {
+        ProgressBarStyle.ASCII
+    } else {
+        ProgressBarStyleBuilder().apply {
+            leftBracket("\u001b[38;2;225;154;26m│")
+            rightBracket("│\u001b[0m")
+            block('█')
+            fractionSymbols(" ▏▎▍▌▋▊▉")
+            rightSideFractionSymbol(' ')
+        }.build()
     }
 
-    class ProgressBar(private val taskName: String, private val total: Long) {
-        private var current: Long = 0
-
-        fun stepTo(value: Long) {
-            current = value
-            listener?.onProgress(taskName, current, total)
-        }
-
-        fun stepBy(amount: Long) {
-            current += amount
-            listener?.onProgress(taskName, current, total)
-        }
-
-        fun close() {
-            // no-op
-        }
+    inline fun progressBar(name: String, max: Long, block: (ProgressBar) -> Unit) {
+        val progressBar = listener?.progressBar(name, max) ?: ProgressBarBuilder().apply {
+            setStyle(defaultBarStyle)
+            setTaskName(name)
+            setInitialMax(max)
+            setUpdateIntervalMillis(250)
+            setConsumer(ConsoleProgressBarConsumer(PrintStream(FileOutputStream(FileDescriptor.out))))
+        }.build()
+        progressBar.use(block)
     }
+
 }
