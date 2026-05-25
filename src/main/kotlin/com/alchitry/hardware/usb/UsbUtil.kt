@@ -53,7 +53,7 @@ object UsbUtil {
             }
             return map
         } catch (e: Exception) {
-            Log.printlnError(e.message)
+            Log.error(e.message ?: "Unknown error")
             return emptyMap()
         }
     }

@@ -19,20 +19,12 @@ object Log {
         listener?.onMessage(message) ?: kotlin.io.println(message)
     }
 
-    fun println(message: String, @Suppress("UNUSED_PARAMETER") color: Any?) {
-        println(message)
-    }
-
     fun error(message: String) {
         listener?.onError(message) ?: System.err.println("ERROR: $message")
     }
 
     fun success(message: String) {
         listener?.onSuccess(message) ?: kotlin.io.println(message)
-    }
-
-    fun printlnError(message: String?) {
-        error(message ?: "Unknown error")
     }
 
     fun exception(e: Throwable) {
