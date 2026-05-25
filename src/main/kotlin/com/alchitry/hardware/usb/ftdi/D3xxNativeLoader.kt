@@ -71,7 +71,7 @@ object D3xxNativeLoader {
             targetFile.setExecutable(true)
         }
 
-        Log.println("Extracted D3xx native library to: ${targetFile.absolutePath}")
+        //Log.println("Extracted D3xx native library to: ${targetFile.absolutePath}")
         return tempDir
     }
 }
