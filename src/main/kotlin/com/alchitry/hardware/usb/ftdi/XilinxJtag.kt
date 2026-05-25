@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import kotlin.time.Duration.Companion.milliseconds
 
 
 class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: Board.XilinxBoard) : BoardLoader {
@@ -87,7 +88,7 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
         jtag.navigateToState(JtagState.RUN_TEST_IDLE)
         setIR(Instruction.JPROGRAM)
         setIR(Instruction.ISC_NOOP)
-        delay(100)
+        delay(100.milliseconds)
         jtag.sendClocks(10000)
         jtag.shiftIRWithCheck(6, "14", "11", "31")
 
@@ -115,7 +116,7 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
         jtag.setFreq(1500000.0)
         setIR(Instruction.USER1)
         jtag.shiftDR(1, byteArrayOf(0))
-        delay(100)
+        delay(100.milliseconds)
     }
 
     @Throws(IOException::class)
@@ -123,7 +124,7 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
         erase(board.bridgeFile)
         setIR(Instruction.JPROGRAM) // reset the FPGA
         jtag.resetState()
-        Log.println("Done.", null)
+        Log.println("Done.")
     }
 
     @Throws(IOException::class)
@@ -149,15 +150,15 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
                 Log.error("Flash buffer overflowed after $overflowIndex bytes!")
             }
             Log.println("Resetting FPGA...")
-            delay(1000) // wait for flash buffer to flush
+            delay(1000.milliseconds) // wait for flash buffer to flush
             jtag.resetState()
-            delay(100)
+            delay(100.milliseconds)
             setIR(Instruction.JPROGRAM)
         } else {
             Log.println("Loading bin...")
             loadBin(binFile)
         }
         jtag.resetState()
-        Log.println("Done.", null)
+        Log.println("Done.")
     }
 }
