@@ -1097,9 +1097,6 @@ object D3xx {
                         handle, fifoId, buffer, length, bytesTransferred, overlappedCtx.overlapped
                     ) as Int
                 }
-                if (status != FT_OK && status != FT_IO_PENDING) {
-                    throw RuntimeException("readPipeAsync failed: ${ftStatusToString(status)}")
-                }
                 return bytesTransferred.get(JAVA_INT, 0)
             }
         }
