@@ -2,6 +2,12 @@ package com.alchitry.hardware.usb.ftdi
 
 import com.alchitry.hardware.Env
 import com.alchitry.hardware.Log
+import com.alchitry.hardware.usb.ftdi.D3xx.FT_IO_INCOMPLETE
+import com.alchitry.hardware.usb.ftdi.D3xx.FT_IO_PENDING
+import com.alchitry.hardware.usb.ftdi.D3xx.FT_ReadPipe
+import com.alchitry.hardware.usb.ftdi.D3xx.FT_ReadPipeAsync
+import com.alchitry.hardware.usb.ftdi.D3xx.FT_WritePipe
+import com.alchitry.hardware.usb.ftdi.D3xx.FT_WritePipeAsync
 import java.lang.foreign.*
 import java.lang.foreign.MemoryLayout.PathElement
 import java.lang.foreign.ValueLayout.*
@@ -98,6 +104,60 @@ object D3xx {
         FT_TIMEOUT -> "FT_TIMEOUT"
         FT_OTHER_ERROR -> "FT_OTHER_ERROR"
         else -> "FT_STATUS($status)"
+    }
+
+    /**
+     * Kotlin enum wrapping the native FT_STATUS integer codes.
+     */
+    enum class FtStatus(val code: Int) {
+        OK(0),
+        INVALID_HANDLE(1),
+        DEVICE_NOT_FOUND(2),
+        DEVICE_NOT_OPENED(3),
+        IO_ERROR(4),
+        INSUFFICIENT_RESOURCES(5),
+        INVALID_PARAMETER(6),
+        INVALID_BAUD_RATE(7),
+        DEVICE_NOT_OPENED_FOR_ERASE(8),
+        DEVICE_NOT_OPENED_FOR_WRITE(9),
+        FAILED_TO_WRITE_DEVICE(10),
+        MEM_INSUFFICIENT_ERROR(11),
+        OVERFLOW_ERROR(12),
+        INVALID_ARGS(16),
+        NOT_SUPPORTED(17),
+        NO_MORE_ITEMS(18),
+        TIMEOUT(19),
+        OPERATION_ABORTED(20),
+        RESERVED_PIPE(21),
+        INVALID_CONTROL_REQUEST_DIRECTION(22),
+        INVALID_CONTROL_REQUEST_TYPE(23),
+        IO_PENDING(24),
+        IO_INCOMPLETE(25),
+        HANDLE_EOF(26),
+        BUSY(27),
+        NO_SYSTEM_RESOURCES(28),
+        DEVICE_LIST_NOT_READY(29),
+        DEVICE_NOT_CONNECTED(30),
+        INCORRECT_DEVICE_PATH(31),
+        OTHER_ERROR(32);
+
+        companion object {
+            private val byCode = entries.associateBy { it.code }
+
+            /**
+             * Returns the [FtStatus] for the given native `FT_STATUS` integer code,
+             * or throws [IllegalArgumentException] if the code is unknown.
+             */
+            fun fromCode(code: Int): FtStatus =
+                byCode[code] ?: throw IllegalArgumentException("Unknown FT_STATUS code: $code")
+
+            /**
+             * Returns the [FtStatus] for the given native code, or `null` if unknown.
+             */
+            fun fromCodeOrNull(code: Int): FtStatus? = byCode[code]
+        }
+
+        override fun toString(): String = "FT_$name"
     }
 
     // ========================================================================
@@ -708,6 +768,70 @@ object D3xx {
         }
 
         /**
+         * Returns the [DeviceInfo] for this connected device by enumerating all devices
+         * and matching the one whose handle equals this connection's [handle].
+         *
+         * @throws RuntimeException if the device info cannot be retrieved or the device is not found.
+         */
+        fun getDeviceInfo(): DeviceInfo {
+            Arena.ofConfined().use { arena ->
+                val numDevsPtr = arena.allocate(JAVA_INT)
+                var status = FT_CreateDeviceInfoList.invokeExact(numDevsPtr) as Int
+                if (status != FT_OK) {
+                    throw RuntimeException("FT_CreateDeviceInfoList failed: ${ftStatusToString(status)}")
+                }
+
+                val numDevs = numDevsPtr.get(JAVA_INT, 0)
+                if (numDevs == 0) {
+                    throw RuntimeException("No devices found")
+                }
+
+                val nodeSize = FT_DEVICE_LIST_INFO_NODE.byteSize()
+                val infoArray = arena.allocate(FT_DEVICE_LIST_INFO_NODE, numDevs.toLong())
+
+                status = FT_GetDeviceInfoList.invokeExact(infoArray, numDevsPtr) as Int
+                if (status != FT_OK) {
+                    throw RuntimeException("FT_GetDeviceInfoList failed: ${ftStatusToString(status)}")
+                }
+
+                for (i in 0 until numDevs) {
+                    val node = infoArray.asSlice(i.toLong() * nodeSize, nodeSize)
+                    val nodeHandle =
+                        node.get(ADDRESS, FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("ftHandle")))
+
+                    if (nodeHandle == handle) {
+                        val flags =
+                            node.get(JAVA_INT, FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("Flags")))
+                        val type =
+                            node.get(JAVA_INT, FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("Type")))
+                        val id = node.get(JAVA_INT, FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("ID")))
+                        val locId =
+                            node.get(JAVA_INT, FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("LocId")))
+
+                        val serialOffset = FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("SerialNumber"))
+                        val serialBytes = ByteArray(16) { node.get(JAVA_BYTE, serialOffset + it) }
+                        val serialNumber = String(serialBytes, 0, serialBytes.indexOf(0).let { if (it < 0) 16 else it })
+
+                        val descOffset = FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("Description"))
+                        val descBytes = ByteArray(32) { node.get(JAVA_BYTE, descOffset + it) }
+                        val description = String(descBytes, 0, descBytes.indexOf(0).let { if (it < 0) 32 else it })
+
+                        return DeviceInfo(
+                            flags = flags,
+                            type = type,
+                            id = id,
+                            locId = locId,
+                            serialNumber = serialNumber,
+                            description = description,
+                        )
+                    }
+                }
+
+                throw RuntimeException("Device with handle $handle not found in device info list")
+            }
+        }
+
+        /**
          * Sets default pipe timeouts, clears stream pipes, and flushes pipes.
          * Mirrors the Rust set_defaults() function.
          */
@@ -854,7 +978,7 @@ object D3xx {
              * @param wait if true, blocks until the operation completes; if false, returns immediately
              *             with [FT_IO_INCOMPLETE] status if not yet done.
              */
-            fun getResult(wait: Boolean = true): Int {
+            fun getResult(wait: Boolean = true): Pair<Int, FtStatus> {
                 Arena.ofConfined().use { resultArena ->
                     val bytesTransferred = resultArena.allocate(JAVA_INT)
                     val status = FT_GetOverlappedResult.invokeExact(
@@ -863,7 +987,7 @@ object D3xx {
                     if (status != FT_OK && status != FT_IO_INCOMPLETE && status != FT_TIMEOUT) {
                         throw RuntimeException("FT_GetOverlappedResult failed: ${ftStatusToString(status)}")
                     }
-                    return bytesTransferred.get(JAVA_INT, 0)
+                    return bytesTransferred.get(JAVA_INT, 0) to FtStatus.fromCode(status)
                 }
             }
 
@@ -874,11 +998,11 @@ object D3xx {
              * @param wait if true, blocks until the operation completes.
              * @return the bytes read.
              */
-            fun getResultBytes(wait: Boolean = true): ByteArray {
-                val transferred = getResult(wait)
+            fun getResultBytes(wait: Boolean = true): Pair<ByteArray, FtStatus> {
+                val (transferred, status) = getResult(wait)
                 val buf = nativeBuffer
                     ?: throw IllegalStateException("No native buffer associated with this context. Use the ByteArray overload of readPipeAsync.")
-                return buf.asSlice(0, transferred.toLong()).toArray(JAVA_BYTE)
+                return buf.asSlice(0, transferred.toLong()).toArray(JAVA_BYTE) to status
             }
 
             override fun close() {
@@ -1092,10 +1216,13 @@ object D3xx {
                     throw RuntimeException("FT_GetChipConfiguration failed: ${ftStatusToString(status)}")
                 }
 
-                val fifoClock = conf.get(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("FIFOClock")))
+                val fifoClock =
+                    conf.get(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("FIFOClock")))
                 val fifoMode = conf.get(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("FIFOMode")))
-                val channelConfig = conf.get(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("ChannelConfig")))
-                val optFeatureOffset = FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("OptionalFeatureSupport"))
+                val channelConfig =
+                    conf.get(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("ChannelConfig")))
+                val optFeatureOffset =
+                    FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("OptionalFeatureSupport"))
                 val optFeature = conf.get(JAVA_SHORT, optFeatureOffset)
 
                 val newFifoClock = CONFIGURATION_FIFO_CLK_100.toByte()
@@ -1109,9 +1236,21 @@ object D3xx {
                 if (fifoClock != newFifoClock || fifoMode != newFifoMode ||
                     channelConfig != newChannelConfig || optFeature != newOptFeature.toShort()
                 ) {
-                    conf.set(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("FIFOClock")), newFifoClock)
-                    conf.set(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("FIFOMode")), newFifoMode)
-                    conf.set(JAVA_BYTE, FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("ChannelConfig")), newChannelConfig)
+                    conf.set(
+                        JAVA_BYTE,
+                        FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("FIFOClock")),
+                        newFifoClock
+                    )
+                    conf.set(
+                        JAVA_BYTE,
+                        FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("FIFOMode")),
+                        newFifoMode
+                    )
+                    conf.set(
+                        JAVA_BYTE,
+                        FT_60XCONFIGURATION.byteOffset(PathElement.groupElement("ChannelConfig")),
+                        newChannelConfig
+                    )
                     conf.set(JAVA_SHORT, optFeatureOffset, newOptFeature.toShort())
 
                     status = FT_SetChipConfiguration.invokeExact(handle, conf) as Int
@@ -1167,7 +1306,8 @@ object D3xx {
                 // Set fNonThreadSafeTransfer = true for both IN and OUT pipes.
                 val pipeArrayOffset = FT_TRANSFER_CONF.byteOffset(PathElement.groupElement("pipe"))
                 val pipeSize = FT_PIPE_TRANSFER_CONF.byteSize()
-                val nonThreadSafeOffset = FT_PIPE_TRANSFER_CONF.byteOffset(PathElement.groupElement("fNonThreadSafeTransfer"))
+                val nonThreadSafeOffset =
+                    FT_PIPE_TRANSFER_CONF.byteOffset(PathElement.groupElement("fNonThreadSafeTransfer"))
 
                 // pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = 1
                 conf.set(JAVA_INT, pipeArrayOffset + (FT_PIPE_DIR_IN * pipeSize) + nonThreadSafeOffset, 1)
