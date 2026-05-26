@@ -1,7 +1,6 @@
 package com.alchitry.hardware.usb.ftdi
 
 import com.alchitry.hardware.Env
-import com.alchitry.hardware.Log
 import java.io.File
 import java.lang.foreign.SymbolLookup
 import java.nio.file.Files

@@ -844,7 +844,10 @@ object D3xx {
          * Represents an initialized overlapped I/O context.
          * Must be released with [close] (or via [use]) after the operation completes.
          */
-        inner class OverlappedContext(val overlapped: MemorySegment, private val arena: Arena) : AutoCloseable {
+        inner class OverlappedContext(val overlapped: MemorySegment, internal val arena: Arena) : AutoCloseable {
+            /** Native buffer managed by this context, set by ByteArray async overloads. */
+            internal var nativeBuffer: MemorySegment? = null
+
             /**
              * Waits for the overlapped operation to complete and returns the number of bytes transferred.
              *
@@ -862,6 +865,20 @@ object D3xx {
                     }
                     return bytesTransferred.get(JAVA_INT, 0)
                 }
+            }
+
+            /**
+             * Waits for an async read to complete and returns the data as a [ByteArray].
+             * Only valid after [readPipeAsync] was called with a [ByteArray] overload.
+             *
+             * @param wait if true, blocks until the operation completes.
+             * @return the bytes read.
+             */
+            fun getResultBytes(wait: Boolean = true): ByteArray {
+                val transferred = getResult(wait)
+                val buf = nativeBuffer
+                    ?: throw IllegalStateException("No native buffer associated with this context. Use the ByteArray overload of readPipeAsync.")
+                return buf.asSlice(0, transferred.toLong()).toArray(JAVA_BYTE)
             }
 
             override fun close() {
@@ -971,6 +988,47 @@ object D3xx {
                 }
                 return bytesTransferred.get(JAVA_INT, 0)
             }
+        }
+
+        /**
+         * Starts an asynchronous read into a newly allocated native buffer of [count] bytes.
+         * The buffer is managed by the [OverlappedContext] and remains valid until it is closed.
+         * Use [OverlappedContext.getResultBytes] to retrieve the data after completion.
+         *
+         * @param fifoId FIFO channel ID (0-3).
+         * @param count number of bytes to read.
+         * @param overlappedCtx the overlapped context from [initializeOverlapped].
+         * @return number of bytes transferred so far (may be 0 if pending).
+         */
+        fun readPipeAsync(
+            fifoId: Byte,
+            count: Int,
+            overlappedCtx: OverlappedContext
+        ): Int {
+            val buffer = overlappedCtx.arena.allocate(count.toLong())
+            overlappedCtx.nativeBuffer = buffer
+            return readPipeAsync(fifoId, buffer, count, overlappedCtx)
+        }
+
+        /**
+         * Starts an asynchronous write of a [ByteArray].
+         * The data is copied into a native buffer managed by the [OverlappedContext]
+         * and remains valid until it is closed.
+         *
+         * @param fifoId FIFO channel ID (0-3).
+         * @param data the bytes to write.
+         * @param overlappedCtx the overlapped context from [initializeOverlapped].
+         * @return number of bytes transferred so far (may be 0 if pending).
+         */
+        fun writePipeAsync(
+            fifoId: Byte,
+            data: ByteArray,
+            overlappedCtx: OverlappedContext
+        ): Int {
+            val buffer = overlappedCtx.arena.allocate(data.size.toLong())
+            MemorySegment.copy(data, 0, buffer, JAVA_BYTE, 0, data.size)
+            overlappedCtx.nativeBuffer = buffer
+            return writePipeAsync(fifoId, buffer, data.size, overlappedCtx)
         }
 
         /**
