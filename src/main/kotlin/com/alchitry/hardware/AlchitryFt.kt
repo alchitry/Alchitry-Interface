@@ -4,8 +4,6 @@ import com.alchitry.hardware.usb.ftdi.D3xx
 import com.alchitry.hardware.usb.ftdi.D3xx.FT_DEVICE_600
 import com.alchitry.hardware.usb.ftdi.D3xx.FT_DEVICE_601
 import com.alchitry.hardware.usb.ftdi.D3xx.FT_FLAGS_SUPERSPEED
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 sealed class FtType(open val superSpeed: Boolean) {
     data class Ft(override val superSpeed: Boolean) : FtType(superSpeed)
@@ -23,7 +21,7 @@ sealed class FtType(open val superSpeed: Boolean) {
     }
 }
 
-class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection) : AutoCloseable {
+class AlchitryFt(val type: FtType, val locId: Int, private val connection: D3xx.DeviceConnection) : AutoCloseable {
     fun asyncWriteData(data: ByteArray): D3xx.DeviceConnection.OverlappedContext {
         val overlappedContext = connection.initializeOverlapped()
         connection.writePipeAsync(0, data, overlappedContext)
@@ -40,7 +38,9 @@ class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection
         connection.close()
     }
 
-    fun isConnected(): Boolean = connection.isConnected()
+    fun isConnected(): Boolean {
+        return D3xx.findDevices().any { it.locId == locId }
+    }
 
     companion object {
         fun find_boards(): List<FtType> {
@@ -53,7 +53,7 @@ class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection
             val ft = FtType.fromDeviceInfo(device)
                 ?: throw RuntimeException("The device at index $index was not an Ft or Ft+")
             val connection = D3xx.connectDevice(index)
-            return AlchitryFt(ft, connection)
+            return AlchitryFt(ft, device.locId, connection)
         }
     }
 }
