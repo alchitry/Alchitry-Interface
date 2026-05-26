@@ -1018,9 +1018,6 @@ object D3xx {
                     val status = FT_GetOverlappedResult.invokeExact(
                         handle, overlapped, bytesTransferred, if (wait) 1 else 0
                     ) as Int
-                    if (status != FT_OK && status != FT_IO_INCOMPLETE && status != FT_TIMEOUT) {
-                        throw RuntimeException("FT_GetOverlappedResult failed: ${ftStatusToString(status)}")
-                    }
                     return bytesTransferred.get(JAVA_INT, 0) to FtStatus.fromCode(status)
                 }
             }
