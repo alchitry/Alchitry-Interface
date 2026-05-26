@@ -30,6 +30,12 @@ class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection
         return overlappedContext
     }
 
+    fun asyncReadData(bytes: Int): D3xx.DeviceConnection.OverlappedContext {
+        val overlappedContext = connection.initializeOverlapped()
+        connection.readPipeAsync(0, bytes, overlappedContext)
+        return overlappedContext
+    }
+
     override fun close() {
         connection.close()
     }
@@ -38,7 +44,9 @@ class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection
 
     companion object {
         fun find_boards(): List<FtType> {
-            return D3xx.findDevices().mapNotNull { device -> FtType.fromDeviceInfo(device) }
+            val devices = D3xx.findDevices().mapNotNull { device -> FtType.fromDeviceInfo(device) }
+            println(devices)
+            return devices
         }
 
         fun connect(index: Int): AlchitryFt {
