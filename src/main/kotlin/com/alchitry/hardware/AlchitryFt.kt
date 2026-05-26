@@ -38,9 +38,7 @@ class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection
 
     companion object {
         fun find_boards(): List<FtType> {
-            val devices = D3xx.findDevices().mapNotNull { device -> FtType.fromDeviceInfo(device) }
-            println(devices)
-            return devices
+            return D3xx.findDevices().mapNotNull { device -> FtType.fromDeviceInfo(device) }
         }
 
         fun connect(index: Int): AlchitryFt {
