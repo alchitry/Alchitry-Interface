@@ -23,7 +23,7 @@ sealed class FtType(open val superSpeed: Boolean) {
     }
 }
 
-class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection) {
+class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection) : AutoCloseable {
     fun asyncSendData(data: ByteArray): D3xx.DeviceConnection.OverlappedContext {
         val overlappedContext = connection.initializeOverlapped()
         connection.writePipeAsync(0, data, overlappedContext)
@@ -51,6 +51,12 @@ class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection
 
     fun checkReadResult(context: D3xx.DeviceConnection.OverlappedContext): Pair<ByteArray, D3xx.FtStatus> =
         context.getResultBytes(false)
+
+    override fun close() {
+        connection.close()
+    }
+
+    fun isConnected(): Boolean = connection.isConnected()
 
     companion object {
         fun find_boards(): List<FtType> {

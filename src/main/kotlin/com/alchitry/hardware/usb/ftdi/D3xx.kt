@@ -832,6 +832,38 @@ object D3xx {
         }
 
         /**
+         * Checks whether the device is still connected by looking for its handle
+         * in the current device info list.
+         *
+         * @return `true` if the device handle is found in the enumerated device list, `false` otherwise.
+         */
+        fun isConnected(): Boolean {
+            Arena.ofConfined().use { arena ->
+                val numDevsPtr = arena.allocate(JAVA_INT)
+                val status = FT_CreateDeviceInfoList.invokeExact(numDevsPtr) as Int
+                if (status != FT_OK) return false
+
+                val numDevs = numDevsPtr.get(JAVA_INT, 0)
+                if (numDevs == 0) return false
+
+                val nodeSize = FT_DEVICE_LIST_INFO_NODE.byteSize()
+                val infoArray = arena.allocate(FT_DEVICE_LIST_INFO_NODE, numDevs.toLong())
+
+                val listStatus = FT_GetDeviceInfoList.invokeExact(infoArray, numDevsPtr) as Int
+                if (listStatus != FT_OK) return false
+
+                for (i in 0 until numDevs) {
+                    val node = infoArray.asSlice(i.toLong() * nodeSize, nodeSize)
+                    val nodeHandle =
+                        node.get(ADDRESS, FT_DEVICE_LIST_INFO_NODE.byteOffset(PathElement.groupElement("ftHandle")))
+                    if (nodeHandle == handle) return true
+                }
+
+                return false
+            }
+        }
+
+        /**
          * Sets default pipe timeouts, clears stream pipes, and flushes pipes.
          * Mirrors the Rust set_defaults() function.
          */
