@@ -1233,7 +1233,7 @@ object D3xx {
             if (status != FT_OK) {
                 throw RuntimeException("FT_Create (by index) failed: ${ftStatusToString(status)}")
             }
-            val handle = handlePtr.get(ADDRESS, 0)
+            val handle = handlePtr.get(ADDRESS, 0).reinterpret(0, Arena.global(), null)
             var closed = false
 
             try {
@@ -1359,7 +1359,7 @@ object D3xx {
                 throw RuntimeException("FT_Create (by index) failed for index $deviceIndex: ${ftStatusToString(status)}")
             }
 
-            val handle = handlePtr.get(ADDRESS, 0)
+            val handle = handlePtr.get(ADDRESS, 0).reinterpret(0, Arena.global(), null)
             val connection = DeviceConnection(handle)
             connection.setDefaults()
             return connection
