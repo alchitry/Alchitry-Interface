@@ -24,7 +24,7 @@ sealed class FtType(open val superSpeed: Boolean) {
 }
 
 class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection) : AutoCloseable {
-    fun asyncSendData(data: ByteArray): D3xx.DeviceConnection.OverlappedContext {
+    fun asyncWriteData(data: ByteArray): D3xx.DeviceConnection.OverlappedContext {
         val overlappedContext = connection.initializeOverlapped()
         connection.writePipeAsync(0, data, overlappedContext)
         return overlappedContext
