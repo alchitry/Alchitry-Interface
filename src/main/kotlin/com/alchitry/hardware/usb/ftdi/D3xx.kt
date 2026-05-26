@@ -8,6 +8,8 @@ import com.alchitry.hardware.usb.ftdi.D3xx.FT_ReadPipe
 import com.alchitry.hardware.usb.ftdi.D3xx.FT_ReadPipeAsync
 import com.alchitry.hardware.usb.ftdi.D3xx.FT_WritePipe
 import com.alchitry.hardware.usb.ftdi.D3xx.FT_WritePipeAsync
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.lang.foreign.*
 import java.lang.foreign.MemoryLayout.PathElement
 import java.lang.foreign.ValueLayout.*

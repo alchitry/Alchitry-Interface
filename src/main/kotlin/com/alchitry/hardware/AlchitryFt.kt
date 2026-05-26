@@ -30,28 +30,6 @@ class AlchitryFt(val type: FtType, private val connection: D3xx.DeviceConnection
         return overlappedContext
     }
 
-    suspend fun waitForWriteResult(context: D3xx.DeviceConnection.OverlappedContext): Pair<Int, D3xx.FtStatus> =
-        withContext(Dispatchers.IO) {
-            context.getResult(true)
-        }
-
-    fun checkWriteResult(context: D3xx.DeviceConnection.OverlappedContext): Pair<Int, D3xx.FtStatus> =
-        context.getResult(false)
-
-    fun asyncReadData(bytes: Int): D3xx.DeviceConnection.OverlappedContext {
-        val overlappedContext = connection.initializeOverlapped()
-        connection.readPipeAsync(0, bytes, overlappedContext)
-        return overlappedContext
-    }
-
-    suspend fun waitForReadResult(context: D3xx.DeviceConnection.OverlappedContext): Pair<ByteArray, D3xx.FtStatus> =
-        withContext(Dispatchers.IO) {
-            context.getResultBytes(true)
-        }
-
-    fun checkReadResult(context: D3xx.DeviceConnection.OverlappedContext): Pair<ByteArray, D3xx.FtStatus> =
-        context.getResultBytes(false)
-
     override fun close() {
         connection.close()
     }
