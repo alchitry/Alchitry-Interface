@@ -26,33 +26,17 @@ object UsbUtil {
         false
     }
 
-    fun detectUnknownFTDI(): Int {
-        return try {
-            if (hasD2XX) {
-                findAllD2xxDevices(false).count { it.board == null }
-            } else {
-                val devices = UsbDevice.usbFindAll(false)
-                val boards = devices.count { it.board == null }
-                UsbDevice.entryListFree(devices)
-                boards
-            }
-        } catch (e: Exception) {
-            Log.error(e.message ?: "Unknown error")
-            return 0
-        }
-    }
-
-    fun detectAttachedBoards(): Map<Board, Int> {
+    fun detectAttachedBoards(): Map<Board?, Int> {
         try {
             val detected = if (hasD2XX) {
-                findAllD2xxDevices(false).mapNotNull { it.board }
+                findAllD2xxDevices(false).map { it.board }
             } else {
                 val devices = UsbDevice.usbFindAll(false)
-                val boards = devices.mapNotNull { it.board }
+                val boards = devices.map { it.board }
                 UsbDevice.entryListFree(devices)
                 boards
             }
-            val map = mutableMapOf<Board, Int>()
+            val map = mutableMapOf<Board?, Int>()
             detected.forEach { board ->
                 map[board] = map.getOrDefault(board, 0) + 1
             }
