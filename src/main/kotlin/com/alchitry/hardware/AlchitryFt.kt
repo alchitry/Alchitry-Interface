@@ -53,7 +53,10 @@ class AlchitryFt(val type: FtType, val locId: Int, private val connection: D3xx.
             val ft = FtType.fromDeviceInfo(device)
                 ?: throw RuntimeException("The device at index $index was not an Ft or Ft+")
             val connection = D3xx.connectDevice(index)
-            return AlchitryFt(ft, device.locId, connection)
+            val updatedDevice =
+                D3xx.findDevices().getOrNull(index)
+                    ?: throw IllegalArgumentException("Device at index $index disappeared after connecting")
+            return AlchitryFt(ft, updatedDevice.locId, connection)
         }
     }
 }
