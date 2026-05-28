@@ -31,14 +31,16 @@ sealed class Board {
             Board::class.allSealedObjects()
                 .firstOrNull { it.name.equals(name, ignoreCase = true) || it.alias.equals(name, ignoreCase = true) }
 
-        val All: List<Board> = listOf(
-            AlchitryPtV2,
-            AlchitryAuV2,
-            AlchitryCuV2,
-            AlchitryAu,
-            AlchitryAuPlus,
-            AlchitryCu
-        )
+        val All: List<Board> by lazy {
+            listOf(
+                AlchitryPtV2,
+                AlchitryAuV2,
+                AlchitryCuV2,
+                AlchitryAu,
+                AlchitryAuPlus,
+                AlchitryCu
+            )
+        }
     }
 
     abstract val name: String
