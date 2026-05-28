@@ -1,10 +1,13 @@
 package com.alchitry.hardware.usb.ftdi
 
+import com.alchitry.hardware.Log
 import com.alchitry.hardware.usb.SerialDevice
 import com.alchitry.hardware.usb.ftdi.enums.BitMode
 import net.sf.yad2xx.Device
 import net.sf.yad2xx.FTDIConstants
 import net.sf.yad2xx.FTDIException
+import java.nio.ByteBuffer
+import kotlin.io.encoding.Base64
 
 class FtdiD2xx(private val device: Device) : Ftdi, SerialDevice {
     private var readTimeout = 0
@@ -18,6 +21,34 @@ class FtdiD2xx(private val device: Device) : Ftdi, SerialDevice {
             throw RuntimeException(e)
         }
     }
+
+    override fun readEEPROM(): String {
+        val buffer = ByteBuffer.allocate(2048)
+        for (i in 0..1023) {
+            buffer.putShort(device.readEE(i).toShort())
+        }
+        val byteArray = ByteArray(2048)
+        buffer.flip()
+        buffer.get(byteArray)
+        return Base64.encode(byteArray)
+    }
+
+    override fun programEEPROM(data: String) {
+        Log.println("Programming EEPROM:")
+        val buffer = ByteBuffer.allocate(2048)
+        buffer.put(Base64.decode(data))
+        buffer.flip()
+        Log.println("Erasing...")
+        device.eraseEE()
+        Log.progressBar("Writing...", 1024) {
+            for (i in 0..1023) {
+                device.writeEE(i, buffer.getShort().toInt())
+                it.step()
+            }
+        }
+        Log.success("Done.")
+    }
+
     override fun setTimeouts(read: Int, write: Int) {
         readTimeout = read
         writeTimeout = write

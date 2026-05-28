@@ -1,5 +1,6 @@
 package com.alchitry.hardware.usb.ftdi
 
+import com.alchitry.hardware.Log
 import com.alchitry.hardware.usb.SerialDevice
 import com.alchitry.hardware.usb.UsbDevice
 import com.alchitry.hardware.usb.ftdi.enums.*
@@ -10,6 +11,7 @@ import org.usb4java.LibUsbException
 import java.nio.ByteBuffer
 import java.nio.IntBuffer
 import kotlin.experimental.or
+import kotlin.io.encoding.Base64
 
 class FtdiLibUSB(dev: Device, val interfaceType: PortInterfaceType) : UsbDevice(
     dev,
@@ -64,6 +66,69 @@ class FtdiLibUSB(dev: Device, val interfaceType: PortInterfaceType) : UsbDevice(
             close()
             throw LibUsbException("set line property failed", -8)
         }
+    }
+
+    override fun readEEPROM(): String {
+        val buffer = ByteBuffer.allocate(2048)
+        val wordBuf = ByteBuffer.allocateDirect(2)
+        for (i in 0..1023) {
+            wordBuf.clear()
+            val ret = LibUsb.controlTransfer(
+                device,
+                FTDI_DEVICE_IN_REQTYPE,
+                SIO_READ_EEPROM_REQUEST,
+                0,
+                i.toShort(),
+                wordBuf,
+                readTimeout.toLong()
+            )
+            if (ret < 0) throw LibUsbException("Reading EEPROM at address $i failed", ret)
+            wordBuf.flip()
+            buffer.put(wordBuf)
+        }
+        val byteArray = ByteArray(2048)
+        buffer.flip()
+        buffer.get(byteArray)
+        return Base64.encode(byteArray)
+    }
+
+    override fun programEEPROM(data: String) {
+        Log.println("Programming EEPROM:")
+        val buffer = ByteBuffer.allocate(2048)
+        buffer.put(Base64.decode(data))
+        buffer.flip()
+
+        // Erase EEPROM
+        Log.println("Erasing...")
+        val eraseRet = LibUsb.controlTransfer(
+            device,
+            FTDI_DEVICE_OUT_REQTYPE,
+            SIO_ERASE_EEPROM_REQUEST,
+            0,
+            0,
+            EMPTY_BUF,
+            writeTimeout.toLong()
+        )
+        if (eraseRet < 0) throw LibUsbException("Erasing EEPROM failed", eraseRet)
+
+        // Write EEPROM
+        Log.progressBar("Writing...", 1024) {
+            for (i in 0..1023) {
+                val value = buffer.getShort()
+                val writeRet = LibUsb.controlTransfer(
+                    device,
+                    FTDI_DEVICE_OUT_REQTYPE,
+                    SIO_WRITE_EEPROM_REQUEST,
+                    value,
+                    i.toShort(),
+                    EMPTY_BUF,
+                    writeTimeout.toLong()
+                )
+                if (writeRet < 0) throw LibUsbException("Writing EEPROM at address $i failed", writeRet)
+                it.step()
+            }
+        }
+        Log.success("Done.")
     }
 
     override fun usbReset() {

@@ -1,6 +1,7 @@
 package com.alchitry.hardware.usb.ftdi
 
 import com.alchitry.hardware.usb.ftdi.enums.BitMode
+import net.sf.yad2xx.Device
 import java.io.Closeable
 
 interface Ftdi : Closeable {
@@ -13,4 +14,6 @@ interface Ftdi : Closeable {
     fun readData(data: ByteArray): Int
     fun readDataWithTimeout(data: ByteArray): Int
     fun usbPurgeBuffers()
+    fun readEEPROM(): String
+    fun programEEPROM(data: String)
 }
