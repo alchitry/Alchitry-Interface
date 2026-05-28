@@ -108,6 +108,5 @@ enum class BitMode(val mask: Byte) {
             CBUS -> FTDIBitMode.FT_BITMODE_CBUS_BITBANG
             SYNCFF -> FTDIBitMode.FT_BITMODE_SYNC_FIFO
             FT1284 -> throw RuntimeException("FT1284 mode not available with the D2xx driver")
-            else -> throw RuntimeException("Unknown bitmode!")
         }
 }

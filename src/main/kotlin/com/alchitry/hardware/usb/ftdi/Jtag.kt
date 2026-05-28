@@ -156,11 +156,11 @@ class Jtag(ftdi: Ftdi) : Mpsse(ftdi) {
     fun shiftDataWithCheck(bitCount: Int, tdi: ByteArray, tdo: ByteArray?, mask: ByteArray?) {
         val read = tdo != null
         var tdoBuffer: ByteArray? = null
-        if (read) tdoBuffer = ByteArray(tdo!!.size)
+        if (read) tdoBuffer = ByteArray(tdo.size)
         if (read && mask!!.size != tdi.size) throw MpsseException("mask length does not match tdi length")
         shiftData(bitCount, tdi, tdoBuffer)
         if (read) {
-            for (i in tdo!!.indices) if (tdoBuffer!![tdoBuffer.size - 1 - i].toInt() and mask!![i].toInt() != tdo[i].toInt() and mask[i].toInt()) {
+            for (i in tdo.indices) if (tdoBuffer!![tdoBuffer.size - 1 - i].toInt() and mask!![i].toInt() != tdo[i].toInt() and mask[i].toInt()) {
                 throw MpsseException(
                     String.format(
                         "TDO didn't match. Got %02X expected %02X with mask %02X at byte %d",
