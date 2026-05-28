@@ -128,15 +128,12 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
     }
 
     @Throws(IOException::class)
-    override suspend fun writeBin(binFile: File, flash: Boolean) {
+    override suspend fun writeBin(binData: ByteArray, flash: Boolean) {
         Log.println("Checking IDCODE...")
         checkIDCODE(board.idCode)
         if (flash) {
             erase(board.bridgeFile) // configure the FPGA with the bridge and erase the flash
             setIR(Instruction.USER2)
-            val binData = withContext(Dispatchers.IO) {
-                binFile.readBytes()
-            }
             val bufferFull = ByteArray(binData.size)
             jtag.setFreq(1500000.0)
             Log.progressBar("Flashing", binData.size.toLong() - 1) { progressBar ->
@@ -156,7 +153,7 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
             setIR(Instruction.JPROGRAM)
         } else {
             Log.println("Loading bin...")
-            loadBin(binFile)
+            loadBin(binData)
         }
         jtag.resetState()
         Log.println("Done.")

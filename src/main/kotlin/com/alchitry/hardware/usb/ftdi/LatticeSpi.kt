@@ -288,11 +288,8 @@ class LatticeSpi private constructor(ftdi: Ftdi) : Mpsse(ftdi), BoardLoader {
     }
 
     @Throws(IOException::class)
-    override suspend fun writeBin(binFile: File, flash: Boolean) {
+    override suspend fun writeBin(binData: ByteArray, flash: Boolean) {
         check(flash) { "Lattice chips only support programming the Flash" }
-        val binData = withContext(Dispatchers.IO) {
-            binFile.readBytes()
-        }
         Log.println("Resetting...")
         flashChipDeselect()
         delay(250)

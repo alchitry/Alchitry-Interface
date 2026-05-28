@@ -3,12 +3,20 @@ package com.alchitry.hardware.usb
 import com.alchitry.hardware.Board
 import com.alchitry.hardware.usb.ftdi.LatticeSpi
 import com.alchitry.hardware.usb.ftdi.XilinxJtag
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 
 interface BoardLoader {
     suspend fun eraseFlash()
-    suspend fun writeBin(binFile: File, flash: Boolean)
+    suspend fun writeBin(binFile: File, flash: Boolean) {
+        writeBin(withContext(Dispatchers.IO) {
+            binFile.readBytes()
+        }, flash)
+
+    }
+    suspend fun writeBin(binData: ByteArray, flash: Boolean)
 
     companion object {
         private suspend inline fun useLoader(board: Board, boardIdx: Int, block: (BoardLoader) -> Unit): Boolean {
@@ -40,6 +48,12 @@ interface BoardLoader {
                     println(t)
                     throw t
                 }
+            }
+        }
+
+        suspend fun load(board: Board, boardIdx: Int, binData: ByteArray, flash: Boolean): Boolean {
+            return useLoader(board, boardIdx) {
+                it.writeBin(binData, flash)
             }
         }
     }
