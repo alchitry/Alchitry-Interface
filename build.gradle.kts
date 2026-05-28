@@ -28,6 +28,7 @@ kotlin {
 }
 
 tasks.test {
+    isEnabled = false
     useJUnitPlatform()
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }

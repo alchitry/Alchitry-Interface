@@ -234,6 +234,9 @@ open class UsbDevice(
 
 
     companion object {
+        private const val FT2232_H_VID = 0x0403.toShort()
+        private const val FT2232_H_PID = 0x6010.toShort()
+
         private fun getDeviceList(): DeviceList {
             if (LibUsb.init(null) != 0) throw LibUsbException("LibUsb.init() failed", -3)
             // Read the USB device list
@@ -290,7 +293,7 @@ open class UsbDevice(
             return devices
         }
 
-        fun usbFindAll(boards: List<Board>): List<UsbUtil.DeviceEntry> {
+        fun usbFindAll(serialDescriptor: Boolean): List<UsbUtil.DeviceEntry> {
             if (LibUsb.init(null) != 0) throw LibUsbException("LibUsb.init() failed", -3)
 
             // Read the USB device list
@@ -305,7 +308,7 @@ open class UsbDevice(
                     result = LibUsb.getDeviceDescriptor(dev, desc)
                     if (result != LibUsb.SUCCESS) throw LibUsbException("Unable to read device descriptor", result)
 
-                    if (boards.any { it.usbDescriptor.vid == desc.idVendor() && it.usbDescriptor.pid == desc.idProduct() }) {
+                    if (FT2232_H_VID == desc.idVendor() && FT2232_H_PID == desc.idProduct()) {
                         val device = DeviceHandle()
                         val code: Int = LibUsb.open(dev, device)
                         if (code < 0) {
@@ -316,12 +319,13 @@ open class UsbDevice(
                             LibUsb.close(device)
                             throw LibUsbException("unable to fetch product description", -8)
                         }
-                        val match = boards.firstOrNull {
-                            it.usbDescriptor.vid == desc.idVendor() && it.usbDescriptor.pid == desc.idProduct() && (it.usbDescriptor.product == null || it.usbDescriptor.product == sDesc)
+
+                        val match = Board.All.firstOrNull {
+                            val descriptor = if (serialDescriptor) it.serialUsbDescriptor else it.usbDescriptor
+                            descriptor.product == null || descriptor.product == sDesc
                         }
 
                         LibUsb.close(device)
-                        if (match == null) continue
                         devices.add(UsbUtil.DeviceEntry(match, dev))
                         LibUsb.refDevice(dev)
                     }
@@ -334,12 +338,8 @@ open class UsbDevice(
             return devices
         }
 
-        fun listFree(devList: List<Device>) {
-            for (dev in devList) LibUsb.unrefDevice(dev)
-        }
-
         fun entryListFree(devList: List<UsbUtil.DeviceEntry>) {
-            for (dev in devList) LibUsb.unrefDevice(dev.device)
+            for (dev in devList) dev.close()
         }
     }
 }

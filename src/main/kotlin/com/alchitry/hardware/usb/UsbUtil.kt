@@ -1,9 +1,9 @@
 package com.alchitry.hardware.usb
 
 
+import com.alchitry.hardware.Board
 import com.alchitry.hardware.Env
 import com.alchitry.hardware.Log
-import com.alchitry.hardware.Board
 import com.alchitry.hardware.usb.ftdi.Ftdi
 import com.alchitry.hardware.usb.ftdi.FtdiD2xx
 import com.alchitry.hardware.usb.ftdi.FtdiLibUSB
@@ -15,7 +15,6 @@ import net.sf.yad2xx.FTDIException
 import net.sf.yad2xx.FTDIInterface
 import org.usb4java.LibUsb
 import org.usb4java.LibUsbException
-import java.io.Closeable
 
 object UsbUtil {
     val lock = Mutex()
@@ -27,23 +26,29 @@ object UsbUtil {
         false
     }
 
-    fun getDevice(board: Board, deviceIndex: Int): DeviceEntry? {
-        val devs = UsbDevice.usbFindAll(listOf(board))
-        val dev = devs.getOrNull(deviceIndex)?.let {
-            LibUsb.refDevice(it.device)
-            DeviceEntry(it.board, LibUsb.refDevice(it.device))
+    fun detectUnknownFTDI(): Int {
+        return try {
+            if (hasD2XX) {
+                findAllD2xxDevices(false).count { it.board == null }
+            } else {
+                val devices = UsbDevice.usbFindAll(false)
+                val boards = devices.count { it.board == null }
+                UsbDevice.entryListFree(devices)
+                boards
+            }
+        } catch (e: Exception) {
+            Log.error(e.message ?: "Unknown error")
+            return 0
         }
-        UsbDevice.entryListFree(devs)
-        return dev
     }
 
     fun detectAttachedBoards(): Map<Board, Int> {
         try {
             val detected = if (hasD2XX) {
-                findAllD2xxDevices(Board.All, false).map { it.board }
+                findAllD2xxDevices(false).mapNotNull { it.board }
             } else {
-                val devices = UsbDevice.usbFindAll(Board.All)
-                val boards = devices.map { it.board }
+                val devices = UsbDevice.usbFindAll(false)
+                val boards = devices.mapNotNull { it.board }
                 UsbDevice.entryListFree(devices)
                 boards
             }
@@ -58,11 +63,11 @@ object UsbUtil {
         }
     }
 
-    private fun findAllD2xxDevices(board: List<Board>, serialDescriptor: Boolean): List<D2xxDeviceEntry> {
+    private fun findAllD2xxDevices(serialDescriptor: Boolean): List<D2xxDeviceEntry> {
         if (!hasD2XX) return emptyList()
-        return FTDIInterface.getDevices().mapNotNull { d ->
+        return FTDIInterface.getDevices().map { d ->
             val desc = d.description
-            for (b in board) {
+            for (b in Board.All) {
                 val usbDescriptor = if (serialDescriptor) b.serialUsbDescriptor else b.usbDescriptor
                 if (desc.isNotEmpty() && usbDescriptor.d2xxInterface.letterMatches(
                         desc[(desc.length - 1).coerceAtLeast(
@@ -72,21 +77,31 @@ object UsbUtil {
                 ) {
                     val product = desc.substring(0, desc.length - 2)
                     if (product == b.usbDescriptor.product) {
-                        return@mapNotNull D2xxDeviceEntry(b, d)
+                        return@map D2xxDeviceEntry(b, d)
                     }
                 }
             }
-            null
+            D2xxDeviceEntry(null, d)
         }
     }
 
     @Throws(FTDIException::class)
-    private fun findD2xxDevice(board: Board, deviceIndex: Int, serialDescriptor: Boolean): Device? {
+    private fun findD2xxDevice(board: Board?, deviceIndex: Int, serialDescriptor: Boolean): Device? {
         if (!hasD2XX) return null
-        return findAllD2xxDevices(listOf(board), serialDescriptor).getOrNull(deviceIndex)?.device
+        return findAllD2xxDevices(serialDescriptor).filter { it.board == board }.getOrNull(deviceIndex)?.device
     }
 
-    fun openFtdiDevice(board: Board, deviceIndex: Int): Ftdi? {
+    private fun findLibUsbDevice(board: Board?, deviceIndex: Int): DeviceEntry? {
+        val devs = UsbDevice.usbFindAll(false).filter { it.board == board }
+        val dev = devs.getOrNull(deviceIndex)?.let {
+            LibUsb.refDevice(it.device)
+            DeviceEntry(it.board, LibUsb.refDevice(it.device))
+        }
+        UsbDevice.entryListFree(devs)
+        return dev
+    }
+
+    fun openFtdiDevice(board: Board?, deviceIndex: Int): Ftdi? {
         if (hasD2XX) {
             try {
                 val dev = findD2xxDevice(board, deviceIndex, false)
@@ -99,8 +114,8 @@ object UsbUtil {
             }
         } else {
             try {
-                val dev = getDevice(board, deviceIndex) ?: return null
-                val ftdi = FtdiLibUSB(dev.device, board.usbDescriptor.d2xxInterface)
+                val dev = findLibUsbDevice(board, deviceIndex) ?: return null
+                val ftdi = FtdiLibUSB(dev.device, board?.usbDescriptor?.d2xxInterface ?: PortInterfaceType.INTERFACE_A)
                 LibUsb.unrefDevice(dev.device)
                 return ftdi
             } catch (e: LibUsbException) {
@@ -137,7 +152,7 @@ object UsbUtil {
                 return null
             }
 
-            val dev = getDevice(board, deviceIndex)
+            val dev = findLibUsbDevice(board, deviceIndex)
             if (dev == null) {
                 Log.error("Failed to get device: $board[$deviceIndex]")
                 return null
@@ -154,17 +169,15 @@ object UsbUtil {
 
     data class UsbDescriptor(
         val name: String,
-        val vid: Short,
-        val pid: Short,
         val product: String?,
         val d2xxInterface: PortInterfaceType
     )
 
-    data class DeviceEntry(val board: Board, val device: org.usb4java.Device) : Closeable {
+    data class DeviceEntry(val board: Board?, val device: org.usb4java.Device) : AutoCloseable {
         override fun close() {
             LibUsb.unrefDevice(device)
         }
     }
 
-    data class D2xxDeviceEntry(val board: Board, val device: Device)
+    data class D2xxDeviceEntry(val board: Board?, val device: Device)
 }

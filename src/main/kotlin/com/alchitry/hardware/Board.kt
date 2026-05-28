@@ -23,6 +23,7 @@ object BoardSerializer : KSerializer<Board> {
         return Board.fromName(name) ?: error("Unknown board type: $name")
     }
 }
+
 @Serializable(with = BoardSerializer::class)
 sealed class Board {
     companion object {
@@ -59,8 +60,6 @@ sealed class Board {
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
                 "Alchitry Pt V2",
-                0x0403.toShort(),
-                0x6010.toShort(),
                 "Alchitry Pt V2",
                 PortInterfaceType.INTERFACE_A
             )
@@ -77,8 +76,6 @@ sealed class Board {
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
                 "Alchitry Au V2",
-                0x0403.toShort(),
-                0x6010.toShort(),
                 "Alchitry Au V2",
                 PortInterfaceType.INTERFACE_A
             )
@@ -95,8 +92,6 @@ sealed class Board {
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
                 "Alchitry Cu V2",
-                0x0403.toShort(),
-                0x6010.toShort(),
                 "Alchitry Cu V2",
                 PortInterfaceType.INTERFACE_A
             )
@@ -111,8 +106,6 @@ sealed class Board {
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
                 "Alchitry Au",
-                0x0403.toShort(),
-                0x6010.toShort(),
                 "Alchitry Au",
                 PortInterfaceType.INTERFACE_A
             )
@@ -129,8 +122,6 @@ sealed class Board {
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
                 "Alchitry Au+",
-                0x0403.toShort(),
-                0x6010.toShort(),
                 "Alchitry Au+",
                 PortInterfaceType.INTERFACE_A
             )
@@ -147,8 +138,6 @@ sealed class Board {
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
                 "Alchitry Cu",
-                0x0403.toShort(),
-                0x6010.toShort(),
                 "Alchitry Cu",
                 PortInterfaceType.INTERFACE_A
             )
