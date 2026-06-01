@@ -3,29 +3,23 @@ package com.alchitry.hardware.usb.ftdi
 import com.alchitry.hardware.Log
 import com.alchitry.hardware.usb.SerialDevice
 import com.alchitry.hardware.usb.ftdi.enums.BitMode
-import net.sf.yad2xx.Device
-import net.sf.yad2xx.FTDIConstants
-import net.sf.yad2xx.FTDIException
+import java.lang.foreign.MemorySegment
 import java.nio.ByteBuffer
 import kotlin.io.encoding.Base64
 
-class FtdiD2xx(private val device: Device) : Ftdi, SerialDevice {
+class FtdiD2xx(val handle: MemorySegment) : Ftdi, SerialDevice {
     private var readTimeout = 0
     private var writeTimeout = 0
 
     init {
-        try {
-            device.setDataCharacteristics(8, 0, FTDIConstants.FT_PARITY_NONE)
-            device.setFlowControl(FTDIConstants.FT_FLOW_NONE, 0.toChar(), 0.toChar())
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.setDataCharacteristics(handle, 8, 0, D2xx.FT_PARITY_NONE)
+        D2xx.setFlowControl(handle, D2xx.FT_FLOW_NONE, 0, 0)
     }
 
     override fun readEEPROM(): String {
         val buffer = ByteBuffer.allocate(2048)
         for (i in 0..1023) {
-            buffer.putShort(device.readEE(i).toShort())
+            buffer.putShort(D2xx.readEE(handle, i))
         }
         val byteArray = ByteArray(2048)
         buffer.flip()
@@ -39,10 +33,10 @@ class FtdiD2xx(private val device: Device) : Ftdi, SerialDevice {
         buffer.put(Base64.decode(data))
         buffer.flip()
         Log.println("Erasing...")
-        device.eraseEE()
+        D2xx.eraseEE(handle)
         Log.progressBar("Writing...", 1024) {
             for (i in 0..1023) {
-                device.writeEE(i, buffer.getShort().toInt())
+                D2xx.writeEE(handle, i, buffer.getShort())
                 it.step()
             }
         }
@@ -52,116 +46,69 @@ class FtdiD2xx(private val device: Device) : Ftdi, SerialDevice {
     override fun setTimeouts(read: Int, write: Int) {
         readTimeout = read
         writeTimeout = write
-        try {
-            device.setTimeouts(read, write)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.setTimeouts(handle, read, write)
     }
 
     override fun usbReset() {
-        try {
-            device.reset()
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.resetDevice(handle)
     }
 
     override fun setChars(eventChar: Byte, eventEnable: Boolean, errorChar: Byte, errorEnable: Boolean) {
-        try {
-            device.setChars(Char(eventChar.toUShort()), eventEnable, Char(errorChar.toUShort()), errorEnable)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.setChars(
+            handle,
+            eventChar, if (eventEnable) 1 else 0,
+            errorChar, if (errorEnable) 1 else 0
+        )
     }
 
     override fun setLatencyTimer(time: Byte) {
-        try {
-            device.setLatencyTimer(time)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.setLatencyTimer(handle, time)
     }
 
     override fun setBitMode(pinDirection: Byte, bitMode: BitMode) {
-        try {
-            device.setBitMode(pinDirection, bitMode.fTDIMode)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.setBitMode(handle, pinDirection, bitMode.mask)
     }
 
     override fun writeData(data: ByteArray): Int {
-        return try {
-            device.write(data)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        return D2xx.write(handle, data)
     }
 
     override fun readData(data: ByteArray): Int {
-        return try {
-            val bytesToRead = device.queueStatus.coerceAtMost(data.size)
-            if (bytesToRead == 0) return 0
-            val buff = ByteArray(bytesToRead)
-            val bytesRead: Int = device.read(buff)
-            System.arraycopy(buff, 0, data, 0, bytesRead)
-            bytesRead
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        val bytesToRead = D2xx.getQueueStatus(handle).coerceAtMost(data.size)
+        if (bytesToRead == 0) return 0
+        return D2xx.read(handle, data, bytesToRead)
     }
 
     override fun readDataWithTimeout(data: ByteArray): Int {
-        return try {
-            device.read(data)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        return D2xx.read(handle, data)
     }
 
     override fun close() {
         try {
-            device.close()
-        } catch (e: FTDIException) {
+            D2xx.close(handle)
+        } catch (e: RuntimeException) {
             e.printStackTrace()
         }
     }
 
     override fun usbPurgeBuffers() {
-        try {
-            device.purge(FTDIConstants.FT_PURGE_RX or FTDIConstants.FT_PURGE_TX)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.purge(handle, D2xx.FT_PURGE_RX or D2xx.FT_PURGE_TX)
     }
 
     override fun setBaudrate(baud: Int): Int {
-        try {
-            device.setBaudRate(baud)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.setBaudRate(handle, baud)
         return baud
     }
 
     override fun setDtrRts(dtr: Boolean, rts: Boolean) {
-        try {
-            device.setDtr(dtr)
-            device.setRts(rts)
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
-        }
+        D2xx.setDtr(handle, dtr)
+        D2xx.setRts(handle, rts)
     }
 
     override fun flushReadBuffer() {
-        try {
-            device.purge(FTDIConstants.FT_PURGE_RX)
-            while (device.getQueueStatus() > 0) {
-                device.read(ByteArray(device.getQueueStatus()))
-            }
-        } catch (e: FTDIException) {
-            throw RuntimeException(e)
+        D2xx.purge(handle, D2xx.FT_PURGE_RX)
+        while (D2xx.getQueueStatus(handle) > 0) {
+            D2xx.read(handle, ByteArray(D2xx.getQueueStatus(handle)))
         }
     }
 }

@@ -26,11 +26,18 @@ object D3xxNativeLoader {
 
     private fun archDir(): String {
         val arch = System.getProperty("os.arch").lowercase()
-        return when {
-            arch == "amd64" || arch == "x86_64" -> "x64"
-            arch == "x86" || arch == "i386" || arch == "i686" -> "x86"
-            arch == "aarch64" || arch == "arm64" -> "arm64"
-            else -> error("Unsupported architecture: $arch")
+        return when (Env.os) {
+            Env.OS.Windows, Env.OS.Linux -> when (arch) {
+                "amd64", "x86_64" -> "x64"
+                "x86", "i386", "i686" -> "x86"
+                "aarch64", "arm64" -> "arm64"
+                else -> error("Unsupported architecture: $arch")
+            }
+            Env.OS.MacOS -> when (arch) {
+                "amd64", "x86_64", "aarch64", "arm64" -> "x64"
+                else -> error("Unsupported architecture: $arch")
+            }
+            Env.OS.Unknown -> error("Unsupported operating system")
         }
     }
 

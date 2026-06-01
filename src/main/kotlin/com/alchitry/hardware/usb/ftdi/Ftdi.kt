@@ -1,7 +1,6 @@
 package com.alchitry.hardware.usb.ftdi
 
 import com.alchitry.hardware.usb.ftdi.enums.BitMode
-import net.sf.yad2xx.Device
 import java.io.Closeable
 
 interface Ftdi : Closeable {

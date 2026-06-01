@@ -15,8 +15,6 @@
  */
 package com.alchitry.hardware.usb.ftdi.enums
 
-import net.sf.yad2xx.FTDIBitMode
-
 /**
  * Enumerated list of Multi-Protocol Synchronous Serial Engine (MPSSE) bitbang modes.
  *
@@ -96,17 +94,4 @@ enum class BitMode(val mask: Byte) {
      * FT1284 mode, available on 232H chips
      */
     FT1284(0x80.toByte());
-
-    val fTDIMode: FTDIBitMode
-        get() = when (this) {
-            RESET -> FTDIBitMode.FT_BITMODE_RESET
-            BITBANG -> FTDIBitMode.FT_BITMODE_ASYNC_BITBANG
-            MPSSE -> FTDIBitMode.FT_BITMODE_MPSSE
-            SYNCBB -> FTDIBitMode.FT_BITMODE_SYNC_BITBANG
-            MCU -> FTDIBitMode.FT_BITMODE_MCU_HOST
-            OPTO -> FTDIBitMode.FT_BITMODE_FAST_SERIAL
-            CBUS -> FTDIBitMode.FT_BITMODE_CBUS_BITBANG
-            SYNCFF -> FTDIBitMode.FT_BITMODE_SYNC_FIFO
-            FT1284 -> throw RuntimeException("FT1284 mode not available with the D2xx driver")
-        }
 }

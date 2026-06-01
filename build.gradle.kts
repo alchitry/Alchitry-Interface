@@ -14,7 +14,6 @@ repositories {
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("com.fazecast:jSerialComm:2.11.4")
-    implementation("com.github.alchitry.yad2xx:yad2xxJava:8d48cda")
     implementation(kotlin("reflect"))
     testImplementation(kotlin("test"))
     implementation("io.github.dsheirer:usb4java:1.3.5")

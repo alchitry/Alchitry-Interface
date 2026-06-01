@@ -4,23 +4,22 @@ package com.alchitry.hardware.usb
 import com.alchitry.hardware.Board
 import com.alchitry.hardware.Env
 import com.alchitry.hardware.Log
+import com.alchitry.hardware.usb.ftdi.D2xx
 import com.alchitry.hardware.usb.ftdi.Ftdi
 import com.alchitry.hardware.usb.ftdi.FtdiD2xx
 import com.alchitry.hardware.usb.ftdi.FtdiLibUSB
 import com.alchitry.hardware.usb.ftdi.enums.PortInterfaceType
 import com.fazecast.jSerialComm.SerialPort
 import kotlinx.coroutines.sync.Mutex
-import net.sf.yad2xx.Device
-import net.sf.yad2xx.FTDIException
-import net.sf.yad2xx.FTDIInterface
 import org.usb4java.LibUsb
 import org.usb4java.LibUsbException
+import java.lang.foreign.MemorySegment
 
 object UsbUtil {
     val lock = Mutex()
 
     val hasD2XX = try {
-        FTDIInterface.getDeviceCount() // attempt to load class, fails if the D2XX driver isn't found
+        D2xx.getDeviceCount() // attempt to load native library
         true
     } catch (e: Throwable) {
         false
@@ -49,7 +48,8 @@ object UsbUtil {
 
     private fun findAllD2xxDevices(serialDescriptor: Boolean): List<D2xxDeviceEntry> {
         if (!hasD2XX) return emptyList()
-        return FTDIInterface.getDevices().map { d ->
+        val devices = D2xx.findDevices()
+        return devices.mapIndexed { index, d ->
             val desc = d.description
             for (b in Board.All) {
                 val usbDescriptor = if (serialDescriptor) b.serialUsbDescriptor else b.usbDescriptor
@@ -61,18 +61,17 @@ object UsbUtil {
                 ) {
                     val product = desc.substring(0, desc.length - 2)
                     if (product == b.usbDescriptor.product) {
-                        return@map D2xxDeviceEntry(b, d)
+                        return@mapIndexed D2xxDeviceEntry(b, index)
                     }
                 }
             }
-            D2xxDeviceEntry(null, d)
+            D2xxDeviceEntry(null, index)
         }
     }
 
-    @Throws(FTDIException::class)
-    private fun findD2xxDevice(board: Board?, deviceIndex: Int, serialDescriptor: Boolean): Device? {
+    private fun findD2xxDevice(board: Board?, deviceIndex: Int, serialDescriptor: Boolean): Int? {
         if (!hasD2XX) return null
-        return findAllD2xxDevices(serialDescriptor).filter { it.board == board }.getOrNull(deviceIndex)?.device
+        return findAllD2xxDevices(serialDescriptor).filter { it.board == board }.getOrNull(deviceIndex)?.deviceIndex
     }
 
     private fun findLibUsbDevice(board: Board?, deviceIndex: Int): DeviceEntry? {
@@ -88,12 +87,10 @@ object UsbUtil {
     fun openFtdiDevice(board: Board?, deviceIndex: Int): Ftdi? {
         if (hasD2XX) {
             try {
-                val dev = findD2xxDevice(board, deviceIndex, false)
-                if (dev != null) {
-                    dev.open()
-                    return FtdiD2xx(dev)
-                }
-            } catch (e: FTDIException) {
+                val devIndex = findD2xxDevice(board, deviceIndex, false) ?: return null
+                val handle = D2xx.openByIndex(devIndex)
+                return FtdiD2xx(handle)
+            } catch (e: RuntimeException) {
                 Log.exception(e)
             }
         } else {
@@ -113,11 +110,12 @@ object UsbUtil {
         try {
             if (hasD2XX) {
                 try {
-                    val d2xx = findD2xxDevice(board, deviceIndex, true) ?: return null
-                    d2xx.open()
+                    val devIndex = findD2xxDevice(board, deviceIndex, true) ?: return null
+                    val handle = D2xx.openByIndex(devIndex)
                     if (Env.isWindows) {
-                        val portName = "COM" + d2xx.comPortNumber
-                        d2xx.close()
+                        val comPort = D2xx.getComPortNumber(handle)
+                        val portName = "COM$comPort"
+                        D2xx.close(handle)
                         val port = SerialPort.getCommPort(portName)
                         if (port != null) {
                             val serial = GenericSerial(port)
@@ -128,9 +126,9 @@ object UsbUtil {
                             }
                         }
                     } else {
-                        return FtdiD2xx(d2xx)
+                        return FtdiD2xx(handle)
                     }
-                } catch (e: FTDIException) {
+                } catch (e: RuntimeException) {
                     Log.exception(e)
                 }
                 return null
@@ -163,5 +161,5 @@ object UsbUtil {
         }
     }
 
-    data class D2xxDeviceEntry(val board: Board?, val device: Device)
+    data class D2xxDeviceEntry(val board: Board?, val deviceIndex: Int)
 }
