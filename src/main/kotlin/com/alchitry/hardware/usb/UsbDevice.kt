@@ -14,7 +14,6 @@ open class UsbDevice(
     val outEndPoint: Byte,
     detachMode: DetachMode = DetachMode.AUTO_DETACH_REATACH_SIO_MODULE
 ) : Closeable {
-    protected val context = Context()
     protected val device: DeviceHandle
     protected val readBuffer: ByteBuffer
     private val readBufferChunksize: Int
@@ -31,8 +30,7 @@ open class UsbDevice(
     )
 
     init {
-        if (LibUsb.init(context) != 0) throw LibUsbException("LibUsb.init() failed", -3)
-
+        check(hasLibUSB)
         readTimeout = 5000
         writeTimeout = 5000
         writeBufferChunksize = 16384
@@ -103,7 +101,6 @@ open class UsbDevice(
     override fun close() {
         LibUsb.releaseInterface(device, interfaceNumber)
         LibUsb.close(device)
-        LibUsb.exit(context)
     }
 
     private fun determinMaxPacketSize(dev: Device, defSize: Int): Int {
@@ -233,20 +230,32 @@ open class UsbDevice(
     }
 
 
-    companion object {
+    companion object : Closeable {
+        private val context = Context()
+        private val hasLibUSB: Boolean
         private const val FT2232_H_VID = 0x0403.toShort()
         private const val FT2232_H_PID = 0x6010.toShort()
 
+        init {
+            hasLibUSB = LibUsb.init(context) == 0
+        }
+
+        override fun close() {
+            if (hasLibUSB)
+                LibUsb.exit(context)
+        }
+
         private fun getDeviceList(): DeviceList {
-            if (LibUsb.init(null) != 0) throw LibUsbException("LibUsb.init() failed", -3)
+            check(hasLibUSB)
             // Read the USB device list
             val list = DeviceList()
-            val result: Int = LibUsb.getDeviceList(null, list)
+            val result: Int = LibUsb.getDeviceList(context, list)
             if (result < 0) throw LibUsbException("Unable to get device list", result)
             return list
         }
 
         fun usbFindAll(vendor: Short, product: Short, description: String?, serial: String?): List<Device> {
+            check(hasLibUSB)
             val list = getDeviceList()
             val devices = try {
                 list.mapNotNull { dev ->
@@ -294,11 +303,11 @@ open class UsbDevice(
         }
 
         fun usbFindAll(serialDescriptor: Boolean): List<UsbUtil.DeviceEntry> {
-            if (LibUsb.init(null) != 0) throw LibUsbException("LibUsb.init() failed", -3)
+            check(hasLibUSB)
 
             // Read the USB device list
             val list = DeviceList()
-            var result: Int = LibUsb.getDeviceList(null, list)
+            var result: Int = LibUsb.getDeviceList(context, list)
             if (result < 0) throw LibUsbException("Unable to get device list", result)
             val devices = mutableListOf<UsbUtil.DeviceEntry>()
             try {
@@ -339,6 +348,7 @@ open class UsbDevice(
         }
 
         fun entryListFree(devList: List<UsbUtil.DeviceEntry>) {
+            check(hasLibUSB)
             for (dev in devList) dev.close()
         }
     }
