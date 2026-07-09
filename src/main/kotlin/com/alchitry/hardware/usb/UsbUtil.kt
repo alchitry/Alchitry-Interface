@@ -13,7 +13,6 @@ import com.fazecast.jSerialComm.SerialPort
 import kotlinx.coroutines.sync.Mutex
 import org.usb4java.LibUsb
 import org.usb4java.LibUsbException
-import java.lang.foreign.MemorySegment
 
 object UsbUtil {
     val lock = Mutex()
@@ -27,7 +26,7 @@ object UsbUtil {
 
     fun detectAttachedBoards(): Map<Board?, Int> {
         try {
-            val detected = if (hasD2XX) {
+            val detected = if (hasD2XX && Env.isWindows) {
                 findAllD2xxDevices(false).map { it.board }
             } else {
                 val devices = UsbDevice.usbFindAll(false)
@@ -85,7 +84,7 @@ object UsbUtil {
     }
 
     fun openFtdiDevice(board: Board?, deviceIndex: Int): Ftdi? {
-        if (hasD2XX) {
+        if (hasD2XX && Env.isWindows) {
             try {
                 val devIndex = findD2xxDevice(board, deviceIndex, false) ?: return null
                 val handle = D2xx.openByIndex(devIndex)
@@ -108,7 +107,7 @@ object UsbUtil {
 
     fun openSerial(board: Board, deviceIndex: Int): SerialDevice? {
         try {
-            if (hasD2XX) {
+            if (hasD2XX && Env.isWindows) {
                 try {
                     val devIndex = findD2xxDevice(board, deviceIndex, true) ?: return null
                     val handle = D2xx.openByIndex(devIndex)
