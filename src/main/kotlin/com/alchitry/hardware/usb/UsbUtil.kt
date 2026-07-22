@@ -20,19 +20,32 @@ object UsbUtil {
     val hasD2XX = try {
         D2xx.getDeviceCount() // attempt to load native library
         true
-    } catch (e: Throwable) {
+    } catch (_: Throwable) {
         false
+    }
+
+    val hasLibUSB = UsbDevice.hasLibUSB
+
+    enum class UsbBackend {
+        LibUSB,
+        D2xx
+    }
+
+    val preferredBackend: UsbBackend = when {
+        Env.isWindows -> if (hasD2XX) UsbBackend.D2xx else UsbBackend.LibUSB
+        else -> if (hasLibUSB) UsbBackend.LibUSB else UsbBackend.D2xx
     }
 
     fun detectAttachedBoards(): Map<Board?, Int> {
         try {
-            val detected = if (hasD2XX && Env.isWindows) {
-                findAllD2xxDevices(false).map { it.board }
-            } else {
-                val devices = UsbDevice.usbFindAll(false)
-                val boards = devices.map { it.board }
-                UsbDevice.entryListFree(devices)
-                boards
+            val detected = when (preferredBackend) {
+                UsbBackend.D2xx -> findAllD2xxDevices(false).map { it.board }
+                UsbBackend.LibUSB -> {
+                    val devices = UsbDevice.usbFindAll(false)
+                    val boards = devices.map { it.board }
+                    UsbDevice.entryListFree(devices)
+                    boards
+                }
             }
             val map = mutableMapOf<Board?, Int>()
             detected.forEach { board ->
@@ -84,16 +97,8 @@ object UsbUtil {
     }
 
     fun openFtdiDevice(board: Board?, deviceIndex: Int): Ftdi? {
-        if (hasD2XX && Env.isWindows) {
-            try {
-                val devIndex = findD2xxDevice(board, deviceIndex, false) ?: return null
-                val handle = D2xx.openByIndex(devIndex)
-                return FtdiD2xx(handle)
-            } catch (e: RuntimeException) {
-                Log.exception(e)
-            }
-        } else {
-            try {
+        when (preferredBackend) {
+            UsbBackend.LibUSB -> try {
                 val dev = findLibUsbDevice(board, deviceIndex) ?: return null
                 val ftdi = FtdiLibUSB(dev.device, board?.usbDescriptor?.d2xxInterface ?: PortInterfaceType.INTERFACE_A)
                 LibUsb.unrefDevice(dev.device)
@@ -101,51 +106,58 @@ object UsbUtil {
             } catch (e: LibUsbException) {
                 Log.exception(e)
             }
+
+            UsbBackend.D2xx -> try {
+                val devIndex = findD2xxDevice(board, deviceIndex, false) ?: return null
+                val handle = D2xx.openByIndex(devIndex)
+                return FtdiD2xx(handle)
+            } catch (e: RuntimeException) {
+                Log.exception(e)
+            }
         }
         return null
     }
 
     fun openSerial(board: Board, deviceIndex: Int): SerialDevice? {
-        try {
-            if (hasD2XX && Env.isWindows) {
-                try {
-                    val devIndex = findD2xxDevice(board, deviceIndex, true) ?: return null
-                    val handle = D2xx.openByIndex(devIndex)
-                    if (Env.isWindows) {
-                        val comPort = D2xx.getComPortNumber(handle)
-                        val portName = "COM$comPort"
-                        D2xx.close(handle)
-                        val port = SerialPort.getCommPort(portName)
-                        if (port != null) {
-                            val serial = GenericSerial(port)
-                            if (serial.open()) {
-                                return serial
-                            } else {
-                                Log.error("Failed to open generic serial port: $portName")
-                            }
-                        }
-                    } else {
-                        return FtdiD2xx(handle)
-                    }
-                } catch (e: RuntimeException) {
-                    Log.exception(e)
+        when (preferredBackend) {
+            UsbBackend.LibUSB -> try {
+                val dev = findLibUsbDevice(board, deviceIndex)
+                if (dev == null) {
+                    Log.error("Failed to get device: $board[$deviceIndex]")
+                    return null
                 }
-                return null
+
+                val device: SerialDevice = FtdiLibUSB(dev.device, board.serialUsbDescriptor.d2xxInterface)
+                LibUsb.unrefDevice(dev.device)
+                return device
+            } catch (e: LibUsbException) {
+                Log.exception(e)
             }
 
-            val dev = findLibUsbDevice(board, deviceIndex)
-            if (dev == null) {
-                Log.error("Failed to get device: $board[$deviceIndex]")
-                return null
+            UsbBackend.D2xx -> try {
+                val devIndex = findD2xxDevice(board, deviceIndex, true) ?: return null
+                val handle = D2xx.openByIndex(devIndex)
+                if (Env.isWindows) {
+                    val comPort = D2xx.getComPortNumber(handle)
+                    val portName = "COM$comPort"
+                    D2xx.close(handle)
+                    val port = SerialPort.getCommPort(portName)
+                    if (port != null) {
+                        val serial = GenericSerial(port)
+                        if (serial.open()) {
+                            return serial
+                        } else {
+                            Log.error("Failed to open generic serial port: $portName")
+                        }
+                    }
+                } else {
+                    return FtdiD2xx(handle)
+                }
+            } catch (e: RuntimeException) {
+                Log.exception(e)
             }
-
-            val device: SerialDevice = FtdiLibUSB(dev.device, board.serialUsbDescriptor.d2xxInterface)
-            LibUsb.unrefDevice(dev.device)
-            return device
-        } catch (e: LibUsbException) {
-            Log.exception(e)
-            return null
         }
+        return null
     }
 
     data class UsbDescriptor(

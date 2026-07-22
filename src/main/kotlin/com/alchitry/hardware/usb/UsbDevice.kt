@@ -232,13 +232,9 @@ open class UsbDevice(
 
     companion object : Closeable {
         private val context = Context()
-        private val hasLibUSB: Boolean
+        val hasLibUSB: Boolean = try { LibUsb.init(context) == 0 } catch (_: Throwable) { false }
         private const val FT2232_H_VID = 0x0403.toShort()
         private const val FT2232_H_PID = 0x6010.toShort()
-
-        init {
-            hasLibUSB = LibUsb.init(context) == 0
-        }
 
         override fun close() {
             if (hasLibUSB)
