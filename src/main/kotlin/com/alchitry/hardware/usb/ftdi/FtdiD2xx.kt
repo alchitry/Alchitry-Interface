@@ -14,6 +14,7 @@ class FtdiD2xx(val handle: MemorySegment) : Ftdi, SerialDevice {
     init {
         D2xx.setDataCharacteristics(handle, 8, 0, D2xx.FT_PARITY_NONE)
         D2xx.setFlowControl(handle, D2xx.FT_FLOW_NONE, 0, 0)
+        D2xx.setLatencyTimer(handle, 1)
     }
 
     override fun readEEPROM(): String {
