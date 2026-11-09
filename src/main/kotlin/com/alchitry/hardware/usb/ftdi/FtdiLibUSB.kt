@@ -70,7 +70,7 @@ class FtdiLibUSB(dev: Device, val interfaceType: PortInterfaceType) : UsbDevice(
 
     override fun readEEPROM(): String {
         val buffer = ByteBuffer.allocate(2048)
-        val wordBuf = ByteBuffer.allocateDirect(2)
+        val wordBuf = ByteBuffer.allocateDirect(2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         for (i in 0..1023) {
             wordBuf.clear()
             val ret = LibUsb.controlTransfer(
@@ -83,8 +83,7 @@ class FtdiLibUSB(dev: Device, val interfaceType: PortInterfaceType) : UsbDevice(
                 readTimeout.toLong()
             )
             if (ret < 0) throw LibUsbException("Reading EEPROM at address $i failed", ret)
-            wordBuf.flip()
-            buffer.put(wordBuf)
+            buffer.putShort(wordBuf.getShort(0))
         }
         val byteArray = ByteArray(2048)
         buffer.flip()

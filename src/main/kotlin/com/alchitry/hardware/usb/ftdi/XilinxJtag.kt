@@ -6,10 +6,13 @@ import com.alchitry.hardware.usb.BoardLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import kotlin.experimental.and
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 
 class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: Board.XilinxBoard) : BoardLoader {
@@ -115,8 +118,18 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
         Log.println("Erasing...")
         jtag.setFreq(1500000.0)
         setIR(Instruction.USER1)
-        jtag.shiftDR(1, byteArrayOf(0))
+        jtag.shiftDR(1, byteArrayOf(0x01.toByte()))
         delay(100.milliseconds)
+        withTimeout(200.seconds) {
+            while (true) {
+                val value = ByteArray(1)
+                setIR(Instruction.USER1)
+                jtag.shiftDR(1, byteArrayOf(0), value)
+                if ((value[0] and 0x01) == 0.toByte())
+                    break
+                delay(100.milliseconds)
+            }
+        }
     }
 
     @Throws(IOException::class)

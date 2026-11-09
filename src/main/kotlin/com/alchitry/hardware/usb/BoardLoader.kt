@@ -1,6 +1,7 @@
 package com.alchitry.hardware.usb
 
 import com.alchitry.hardware.Board
+import com.alchitry.hardware.Log
 import com.alchitry.hardware.usb.ftdi.LatticeSpi
 import com.alchitry.hardware.usb.ftdi.XilinxJtag
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,7 @@ interface BoardLoader {
         }, flash)
 
     }
+
     suspend fun writeBin(binData: ByteArray, flash: Boolean)
 
     companion object {
@@ -35,25 +37,35 @@ interface BoardLoader {
         }
 
         suspend fun erase(board: Board, boardIdx: Int): Boolean {
-            return useLoader(board, boardIdx) {
-                it.eraseFlash()
+            return useLoader(board, boardIdx) { loader ->
+                try {
+                    loader.eraseFlash()
+                } catch (t: Throwable) {
+                    t.message?.let { Log.error(it) }
+                    throw t
+                }
             }
         }
 
         suspend fun load(board: Board, boardIdx: Int, binFile: File, flash: Boolean): Boolean {
-            return useLoader(board, boardIdx) {
+            return useLoader(board, boardIdx) { loader ->
                 try {
-                    it.writeBin(binFile, flash)
+                    loader.writeBin(binFile, flash)
                 } catch (t: Throwable) {
-                    println(t)
+                    t.message?.let { Log.error(it) }
                     throw t
                 }
             }
         }
 
         suspend fun load(board: Board, boardIdx: Int, binData: ByteArray, flash: Boolean): Boolean {
-            return useLoader(board, boardIdx) {
-                it.writeBin(binData, flash)
+            return useLoader(board, boardIdx) { loader ->
+                try {
+                    loader.writeBin(binData, flash)
+                } catch (t: Throwable) {
+                    t.message?.let { Log.error(it) }
+                    throw t
+                }
             }
         }
     }

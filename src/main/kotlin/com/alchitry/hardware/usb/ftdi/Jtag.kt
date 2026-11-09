@@ -83,7 +83,7 @@ class Jtag(ftdi: Ftdi) : Mpsse(ftdi) {
                     tdi[0]
                 )
             )
-            val lastBit = (tdi[0].toInt() ushr (bitCount - 1) % 8 and 0x01).toByte()
+            val lastBit = ((tdi[0].toInt() ushr ((bitCount - 1) % 8)) and 0x01).toByte()
             ftdi.writeData(
                 byteArrayOf(
                     (if (tdo != null) 0x6E else 0x4B).toByte(),
@@ -94,7 +94,7 @@ class Jtag(ftdi: Ftdi) : Mpsse(ftdi) {
             if (tdo != null) {
                 val inputBuffer = ByteArray(if (bitCount > 1) 2 else 1)
                 if (ftdi.readDataWithTimeout(inputBuffer) != inputBuffer.size) throw RuntimeException("Read of " + inputBuffer.size + " bytes timed out!")
-                tdo[0] = (inputBuffer[inputBuffer.size - 1].toInt() ushr 8 - bitCount).toByte()
+                tdo[0] = (inputBuffer[inputBuffer.size - 1].toInt() ushr (8 - bitCount)).toByte()
             }
         } else {
             val fullBytes = (bitCount - 1) / 8

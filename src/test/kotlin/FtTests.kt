@@ -2,11 +2,13 @@ import com.alchitry.hardware.AlchitryFt
 import com.alchitry.hardware.usb.ftdi.D3xx
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class FtTests {
     @Test
+    @Ignore("Requires physical FTDI USB device")
     fun testFindBoards() {
         val boards = AlchitryFt.find_boards()
         assert(boards.isNotEmpty()) { "No boards found" }
@@ -18,6 +20,7 @@ class FtTests {
     }
 
     @Test
+    @Ignore("Requires physical FTDI USB device")
     fun basicReadWriteTest() {
         D3xx.connectDevice(0).use { device ->
             val dataOut = byteArrayOf(1,2,3,4,5,6,7,8,9,10)
@@ -28,6 +31,7 @@ class FtTests {
     }
 
     @Test
+    @Ignore("Requires physical FTDI USB device")
     fun asyncReadWrite() {
         D3xx.connectDevice(0).use { device ->
             runBlocking {

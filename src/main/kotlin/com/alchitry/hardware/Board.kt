@@ -29,12 +29,14 @@ sealed class Board {
     companion object {
         fun fromName(name: String): Board? =
             Board::class.allSealedObjects()
-                .firstOrNull { it.name.equals(name, ignoreCase = true) || it.alias.equals(name, ignoreCase = true) }
+                .firstOrNull { board -> board.name.equals(name, ignoreCase = true) || board.alias.any { it.equals(name, ignoreCase = true) }}
 
         val All: List<Board> by lazy {
             listOf(
-                AlchitryPtV2,
-                AlchitryAuV2,
+                AlchitryPtV2T200,
+                AlchitryPtV2T100,
+                AlchitryAuV2T50,
+                AlchitryAuV2T35,
                 AlchitryCuV2,
                 AlchitryAu,
                 AlchitryAuPlus,
@@ -44,7 +46,7 @@ sealed class Board {
     }
 
     abstract val name: String
-    abstract val alias: String
+    abstract val alias: Collection<String>
     abstract val fpgaName: String
     abstract val usbDescriptor: UsbUtil.UsbDescriptor
     abstract val serialUsbDescriptor: UsbUtil.UsbDescriptor
@@ -55,9 +57,9 @@ sealed class Board {
         val idCode: String
     }
 
-    data object AlchitryPtV2 : Board(), XilinxBoard {
-        override val name = "Alchitry Pt V2"
-        override val alias = "PtV2"
+    data object AlchitryPtV2T100 : Board(), XilinxBoard {
+        override val name = "Alchitry Pt V2 100T"
+        override val alias = listOf("PtV2-100T", "PtV2", "Alchitry Pt V2")
         override val fpgaName = "xc7a100tfgg484-2"
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
@@ -66,14 +68,30 @@ sealed class Board {
                 PortInterfaceType.INTERFACE_A
             )
         override val serialUsbDescriptor = usbDescriptor.copy(d2xxInterface = PortInterfaceType.INTERFACE_B)
-        override val bridgeFile = "/bridges/pt_v2.bin"
+        override val bridgeFile = "/bridges/pt_v2_100t.bin"
         override val idCode = "13631093"
         override val supportsRamLoading = true
     }
 
-    data object AlchitryAuV2 : Board(), XilinxBoard {
-        override val name = "Alchitry Au V2"
-        override val alias = "AuV2"
+    data object AlchitryPtV2T200 : Board(), XilinxBoard {
+        override val name = "Alchitry Pt V2 200T"
+        override val alias = listOf("PtV2-200T")
+        override val fpgaName = "xc7a200tfbg484-2"
+        override val usbDescriptor =
+            UsbUtil.UsbDescriptor(
+                "Alchitry Pt V2 200T",
+                "Alchitry Pt V2 200T",
+                PortInterfaceType.INTERFACE_A
+            )
+        override val serialUsbDescriptor = usbDescriptor.copy(d2xxInterface = PortInterfaceType.INTERFACE_B)
+        override val bridgeFile = "/bridges/pt_v2_200t.bin"
+        override val idCode = "13636093"
+        override val supportsRamLoading = true
+    }
+
+    data object AlchitryAuV2T35 : Board(), XilinxBoard {
+        override val name = "Alchitry Au V2 35T"
+        override val alias = listOf("AuV2-35T", "AuV2", "Alchitry Au V2")
         override val fpgaName = "xc7a35tftg256-2"
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
@@ -82,14 +100,30 @@ sealed class Board {
                 PortInterfaceType.INTERFACE_A
             )
         override val serialUsbDescriptor = usbDescriptor.copy(d2xxInterface = PortInterfaceType.INTERFACE_B)
-        override val bridgeFile = "/bridges/au_v2.bin"
+        override val bridgeFile = "/bridges/au_v2_35t.bin"
         override val idCode = "0362D093"
+        override val supportsRamLoading = true
+    }
+
+    data object AlchitryAuV2T50 : Board(), XilinxBoard {
+        override val name = "Alchitry Au V2 50T"
+        override val alias = listOf("AuV2-50T")
+        override val fpgaName = "xc7a50tftg256-2"
+        override val usbDescriptor =
+            UsbUtil.UsbDescriptor(
+                "Alchitry Au V2 50T",
+                "Alchitry Au V2 50T",
+                PortInterfaceType.INTERFACE_A
+            )
+        override val serialUsbDescriptor = usbDescriptor.copy(d2xxInterface = PortInterfaceType.INTERFACE_B)
+        override val bridgeFile = "/bridges/au_v2_35t.bin"
+        override val idCode = "0362C093"
         override val supportsRamLoading = true
     }
 
     data object AlchitryCuV2 : Board() {
         override val name = "Alchitry Cu V2"
-        override val alias = "CuV2"
+        override val alias = listOf("CuV2")
         override val fpgaName = "ICE40HX8K-CB132IC"
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
@@ -103,7 +137,7 @@ sealed class Board {
 
     data object AlchitryAu : Board(), XilinxBoard {
         override val name = "Alchitry Au"
-        override val alias = "Au"
+        override val alias = listOf("Au")
         override val fpgaName = "xc7a35tftg256-1"
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
@@ -119,7 +153,7 @@ sealed class Board {
 
     data object AlchitryAuPlus : Board(), XilinxBoard {
         override val name = "Alchitry Au+"
-        override val alias = "Au+"
+        override val alias = listOf("Au+")
         override val fpgaName = "xc7a100tftg256-1"
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(
@@ -135,7 +169,7 @@ sealed class Board {
 
     data object AlchitryCu : Board() {
         override val name = "Alchitry Cu"
-        override val alias = "Cu"
+        override val alias = listOf("Cu")
         override val fpgaName = "ICE40HX8K-CB132IC"
         override val usbDescriptor =
             UsbUtil.UsbDescriptor(

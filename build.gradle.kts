@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.alchitry"
-version = "1.0.0"
+version = "1.0.1"
 
 repositories {
     mavenCentral()
@@ -28,7 +28,6 @@ kotlin {
 }
 
 tasks.test {
-    isEnabled = false
     useJUnitPlatform()
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
