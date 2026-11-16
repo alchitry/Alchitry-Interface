@@ -68,8 +68,8 @@ class Jtag(ftdi: Ftdi) : Mpsse(ftdi) {
 
         if (tdo != null) {
             val buff = ByteArray(4096)
+            @Suppress("ControlFlowWithEmptyBody")
             while (ftdi.readData(buff) == buff.size) {
-                Unit
             }
         }
 
