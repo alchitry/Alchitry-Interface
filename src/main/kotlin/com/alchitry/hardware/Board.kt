@@ -33,11 +33,11 @@ sealed class Board {
 
         val All: List<Board> by lazy {
             listOf(
-                AlchitryPtV2T200,
-                AlchitryPtV2T100,
-                AlchitryAuV2T50,
-                AlchitryAuV2T35,
                 AlchitryCuV2,
+                AlchitryAuV2T35,
+                AlchitryAuV2T50,
+                AlchitryPtV2T100,
+                AlchitryPtV2T200,
                 AlchitryAu,
                 AlchitryAuPlus,
                 AlchitryCu
