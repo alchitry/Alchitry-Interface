@@ -10,6 +10,8 @@ import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.experimental.and
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -110,12 +112,8 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
     }
 
     @Throws(IOException::class)
-    private suspend fun erase(bridgeResource: String) {
-        Log.println("Loading bridge configuration...")
-        val stream = this::class.java.getResourceAsStream(bridgeResource)
-            ?: error("Failed to load bridge resource: $bridgeResource")
-        loadBin(stream)
-        Log.println("Erasing...")
+    private suspend fun erase() {
+        Log.println("Erasing entire flash...")
         jtag.setFreq(1500000.0)
         setIR(Instruction.USER1)
         jtag.shiftDR(1, byteArrayOf(0x01.toByte()))
@@ -132,9 +130,52 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
         }
     }
 
+    private suspend fun loadBridge(bridgeResource: String) {
+        Log.println("Loading bridge configuration...")
+        val stream = this::class.java.getResourceAsStream(bridgeResource)
+            ?: error("Failed to load bridge resource: $bridgeResource")
+        loadBin(stream)
+    }
+
+    private fun getIdCode(): Int {
+        jtag.setFreq(1500000.0)
+        setIR(Instruction.USER4)
+        val idCode = ByteArray(4)
+        jtag.shiftDR(24, ByteArray(4), idCode)
+        val buff = ByteBuffer.allocateDirect(4).order(ByteOrder.LITTLE_ENDIAN)
+        buff.put(idCode)
+        buff.flip()
+        val id = buff.getInt()
+        Log.println("Flash ID: 0x${id.toHexString(HexFormat.UpperCase)}")
+        return id
+    }
+
+    @Throws(IOException::class)
+    private suspend fun erase4KSectors(sectors: Int) {
+        Log.println("Erasing $sectors 4KB sectors...")
+        jtag.setFreq(1500000.0)
+        setIR(Instruction.USER3)
+        jtag.shiftDR(16, byteArrayOf(sectors.toByte(), (sectors ushr 8).toByte()))
+        delay(100.milliseconds)
+        withTimeout(200.seconds) {
+            while (true) {
+                val value = ByteArray(1)
+                setIR(Instruction.USER1)
+                jtag.shiftDR(1, byteArrayOf(0), value)
+                if ((value[0] and 0x01) == 0.toByte())
+                    break
+                delay(100.milliseconds)
+            }
+        }
+    }
+
     @Throws(IOException::class)
     override suspend fun eraseFlash() {
-        erase(board.bridgeFile)
+        loadBridge(board.bridgeFile)
+        if (board != Board.AlchitryAu && board != Board.AlchitryAuPlus) {
+            getIdCode()
+        }
+        erase()
         setIR(Instruction.JPROGRAM) // reset the FPGA
         jtag.resetState()
         Log.println("Done.")
@@ -145,7 +186,14 @@ class XilinxJtag private constructor(private val ftdi: Ftdi, private val board: 
         Log.println("Checking IDCODE...")
         checkIDCODE(board.idCode)
         if (flash) {
-            erase(board.bridgeFile) // configure the FPGA with the bridge and erase the flash
+            loadBridge(board.bridgeFile)
+            if (board == Board.AlchitryAu || board == Board.AlchitryAuPlus) {
+                erase()
+            } else {
+                getIdCode()
+                val sectors = (binData.size + 4095) / 4096
+                erase4KSectors(sectors) // configure the FPGA with the bridge and erase the flash
+            }
             setIR(Instruction.USER2)
             val bufferFull = ByteArray(binData.size)
             jtag.setFreq(1500000.0)

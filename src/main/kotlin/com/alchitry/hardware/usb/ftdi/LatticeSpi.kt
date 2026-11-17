@@ -5,10 +5,7 @@ import com.alchitry.hardware.allSealedObjects
 import com.alchitry.hardware.usb.BoardLoader
 import com.alchitry.hardware.usb.ftdi.enums.FlashCommand
 import com.alchitry.hardware.usb.ftdi.enums.MpsseCommand
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import java.io.File
 import java.io.IOException
 import kotlin.math.min
 import kotlin.time.Duration
@@ -199,6 +196,14 @@ class LatticeSpi private constructor(ftdi: Ftdi) : Mpsse(ftdi), BoardLoader {
         flashChipDeselect()
     }
 
+    private fun flash4KbSectorErase(addr: Int) {
+        val data =
+            byteArrayOf(FlashCommand.SE.command, (addr ushr 16).toByte(), (addr ushr 8).toByte(), addr.toByte())
+        flashChipSelect()
+        sendSpi(data)
+        flashChipDeselect()
+    }
+
     private fun flash64KbSectorErase(addr: Int) {
         val data =
             byteArrayOf(FlashCommand.BE64.command, (addr ushr 16).toByte(), (addr ushr 8).toByte(), addr.toByte())
@@ -267,13 +272,41 @@ class LatticeSpi private constructor(ftdi: Ftdi) : Mpsse(ftdi), BoardLoader {
         Log.println("Resetting...")
         flashChipDeselect()
         delay(250)
-        Log.println("Erasing...")
+        Log.println("Erasing flash...")
         flashReset()
         flashPowerUp()
         flashReadId()
         flashWriteEnable()
         flashBulkErase()
         flashWait()
+        flashPowerDown()
+        flashReleaseReset()
+        delay(250)
+        Log.success("Done.")
+    }
+
+    @Throws(IOException::class)
+    suspend fun erase4KSectors(sectors: Int) {
+        Log.println("Resetting...")
+        flashChipDeselect()
+        delay(250)
+        flashReset()
+        flashPowerUp()
+        val chip = flashReadId()
+        if (chip == FlashChip.SST26VF032B) {
+            flashWriteEnable()
+            flashUnlock()
+        }
+        val endAddr = sectors.toLong() * 0x1000
+        Log.progressBar("Erase  ", endAddr) {
+            for (addr in 0..<sectors * 0x1000 step 0x1000) {
+                flashWriteEnable()
+                flash4KbSectorErase(addr)
+                flashWait()
+                it.stepBy(0x1000)
+            }
+        }
+        Log.println("Resetting...")
         flashPowerDown()
         flashReleaseReset()
         delay(250)
